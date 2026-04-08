@@ -1,36 +1,136 @@
 /**
- * 유튜브 MP3 클라우드 저장 익스텐션 (v1.2 - 라이브 체크 & 실시간 UI 대응)
+ * 유튜브 MP3 클라우드 저장 익스텐션 (v2.0 - 현대적 UI & 비동기 프로그래스)
  */
 
-function showStatusToast(message, isLoading = false) {
-    let toast = document.getElementById('yt-mp3-toast');
-    if (!toast) {
-        toast = document.createElement('div');
-        toast.id = 'yt-mp3-toast';
-        document.body.appendChild(toast);
+function createProgressUI() {
+    let container = document.getElementById('yt-mp3-progress-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'yt-mp3-progress-container';
+        document.body.appendChild(container);
+
+        const style = document.createElement('style');
+        style.textContent = `
+            #yt-mp3-progress-container {
+                position: fixed; bottom: 30px; right: 30px; z-index: 99999;
+                background: #1e1e1e; color: white; padding: 16px; border-radius: 12px;
+                box-shadow: 0 10px 30px rgba(0,0,0,0.5); border: 1px solid #333;
+                width: 320px; transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+                opacity: 0; transform: translateY(100px); font-family: "Roboto", sans-serif;
+            }
+            #yt-mp3-progress-container.show { opacity: 1; transform: translateY(0); }
+            .mp3-progress-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+            .mp3-progress-title { font-size: 14px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px; }
+            .mp3-progress-bar-bg { width: 100%; height: 6px; background: #333; border-radius: 3px; overflow: hidden; }
+            .mp3-progress-bar-fill { width: 0%; height: 100%; background: #ff0000; transition: width 0.3s ease; }
+            .mp3-progress-status { font-size: 12px; margin-top: 8px; color: #aaa; text-align: center; }
+            .mp3-close-btn { cursor: pointer; color: #888; font-size: 18px; }
+        `;
+        document.head.appendChild(style);
     }
+    
+    container.innerHTML = `
+        <div class="mp3-progress-header">
+            <span class="mp3-progress-title">MP3 변환 시작...</span>
+            <span class="mp3-close-btn">&times;</span>
+        </div>
+        <div class="mp3-progress-bar-bg">
+            <div class="mp3-progress-bar-fill"></div>
+        </div>
+        <div class="mp3-progress-status">Initializing...</div>
+    `;
 
-    Object.assign(toast.style, {
-        position: 'fixed', bottom: '50px', left: '50%', transform: 'translateX(-50%)',
-        backgroundColor: '#282828', color: '#ffffff', padding: '14px 24px',
-        borderRadius: '12px', fontSize: '14px', zUnit: '10000',
-        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px',
-        transition: 'all 0.3s ease', opacity: '1', boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
-        minWidth: '300px', border: '1px solid #444', textAlign: 'center', zIndex: '10000'
-    });
+    container.querySelector('.mp3-close-btn').onclick = () => {
+        container.classList.remove('show');
+    };
 
-    const progressBar = isLoading ?
-        `<div style="width: 100%; height: 4px; background: #444; border-radius: 2px; overflow: hidden; margin-top: 5px;">
-            <div id="toast-bar" style="width: 10%; height: 100%; background: #ff0000; transition: width 1.5s ease-in-out;"></div>
-         </div>` : '';
+    return container;
+}
 
-    toast.innerHTML = `<div>${message}</div>${progressBar}`;
+function updateUI(container, data) {
+    const title = container.querySelector('.mp3-progress-title');
+    const bar = container.querySelector('.mp3-progress-bar-fill');
+    const status = container.querySelector('.mp3-progress-status');
 
-    if (!isLoading) {
+    if (data.status === 'completed') {
+        title.textContent = data.title || '변환 완료';
+        bar.style.width = '100%';
+        bar.style.background = '#4caf50';
+        status.textContent = '변환 완료! MP3 파일을 준비 중입니다...';
+        
         setTimeout(() => {
-            toast.style.opacity = '0';
-            setTimeout(() => { if(toast) toast.remove(); }, 300);
-        }, 4000);
+            if (container) {
+                container.classList.remove('show');
+                setTimeout(() => container.remove(), 400);
+            }
+        }, 5000);
+    } else if (data.status === 'failed') {
+        title.textContent = '오류 발생';
+        bar.style.width = '100%';
+        bar.style.background = '#f44336';
+        status.textContent = data.message || '알 수 없는 오류가 발생했습니다.';
+        status.style.color = '#ff5252';
+        
+        setTimeout(() => {
+            if (container) {
+                container.classList.remove('show');
+                setTimeout(() => container.remove(), 400);
+            }
+        }, 8000);
+    } else {
+        // progress status
+        if (data.title && data.title !== "분석 중...") {
+            title.textContent = data.title;
+        }
+        bar.style.width = (data.progress || 0) + '%';
+        status.textContent = data.message || '대기 중...';
+    }
+}
+
+async function startPolling(taskId, container) {
+    const pollUrl = `http://127.0.0.1:8000/poll/${taskId}`;
+    
+    const interval = setInterval(async () => {
+        try {
+            const resp = await fetch(pollUrl);
+            if (!resp.ok) {
+                // Network error (backend down?)
+                updateUI(container, { status: 'failed', message: '백엔드 서버에 연결할 수 없습니다.' });
+                clearInterval(interval);
+                return;
+            }
+            const data = await resp.json();
+            
+            updateUI(container, data);
+
+            if (data.status === 'completed') {
+                clearInterval(interval);
+                triggerDownload(data.downloadUrl, data.title);
+            } else if (data.status === 'failed') {
+                clearInterval(interval);
+            }
+        } catch (e) {
+            console.error('Polling error:', e);
+            updateUI(container, { status: 'failed', message: '네트워크 연결 오류: ' + e.message });
+            clearInterval(interval);
+        }
+    }, 1500);
+}
+
+async function triggerDownload(url, title) {
+    try {
+        const resp = await fetch(url);
+        const blob = await resp.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        a.download = `${title || 'music'}.mp3`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(blobUrl);
+    } catch (e) {
+        console.error('Download error:', e);
     }
 }
 
@@ -41,50 +141,77 @@ function injectCloudButton() {
     if (btnGroup) {
         const myBtn = document.createElement('button');
         myBtn.id = 'yt-mp3-cloud-saver-btn';
-        myBtn.innerHTML = `☁️ <span style="margin-left:6px">클라우드 저장</span>`;
-
+        myBtn.innerHTML = `🎵 <span style="margin-left:6px">MP3 저장</span>`;
         myBtn.style.cssText = `
-            background-color: rgba(255, 255, 255, 0.1); color: #f1f1f1; border: none;
-            padding: 0 16px; height: 36px; border-radius: 18px; margin-left: 8px;
-            cursor: pointer; font-size: 14px; font-weight: 500; display: flex; align-items: center;
+            background: rgba(255, 255, 255, 0.08) !important; color: #fff !important; border: 1px solid rgba(255, 255, 255, 0.12) !important; padding: 0 14px;
+            height: 36px; border-radius: 18px; margin-left: 8px; cursor: pointer;
+            font-size: 14px; font-weight: 500; display: flex; align-items: center;
+            box-shadow: none;
+            transition: background-color 0.2s ease, transform 0.2s ease;
         `;
 
-        myBtn.addEventListener('click', async () => {
-            myBtn.disabled = true;
-            showStatusToast('MP3 변환 중...', true);
+        myBtn.onmouseover = () => {
+            myBtn.style.setProperty('background', 'rgba(255, 255, 255, 0.14)', 'important');
+        };
+        myBtn.onmouseout = () => {
+            myBtn.style.setProperty('background', 'rgba(255, 255, 255, 0.08)', 'important');
+        };
+        myBtn.onmousedown = () => {
+            myBtn.style.transform = 'scale(0.98)';
+        };
+        myBtn.onmouseup = () => {
+            myBtn.style.transform = 'scale(1)';
+        };
 
+        myBtn.onclick = async () => {
+            const container = createProgressUI();
+            container.classList.add('show');
+            
             try {
-                const videoUrl = window.location.href;
-                if (!ffmpeg.isLoaded()) {
-                    await ffmpeg.load();
+                const resp = await fetch('http://127.0.0.1:8000/convert', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ url: window.location.href })
+                });
+                if (!resp.ok) {
+                    const errorData = await resp.json().catch(() => null);
+                    updateUI(container, {
+                        status: 'failed',
+                        message: errorData?.detail || '서버 요청에 실패했습니다.'
+                    });
+                    return;
                 }
-
-                const response = await fetch(videoUrl);
-                const videoData = await response.blob();
-
-                ffmpeg.FS('writeFile', 'input.mp4', new Uint8Array(await videoData.arrayBuffer()));
-                await ffmpeg.run('-i', 'input.mp4', 'output.mp3');
-
-                const mp3Data = ffmpeg.FS('readFile', 'output.mp3');
-                const mp3Blob = new Blob([mp3Data.buffer], { type: 'audio/mpeg' });
-                const mp3Url = URL.createObjectURL(mp3Blob);
-
-                const a = document.createElement('a');
-                a.href = mp3Url;
-                a.download = 'output.mp3';
-                a.click();
-
-                showStatusToast('MP3 파일이 성공적으로 저장되었습니다!');
-            } catch (error) {
-                console.error('변환 중 오류 발생:', error);
-                showStatusToast('변환 중 오류가 발생했습니다.');
-            } finally {
-                myBtn.disabled = false;
+                const data = await resp.json();
+                if (data.task_id) {
+                    startPolling(data.task_id, container);
+                }
+            } catch (e) {
+                console.error('Start error:', e);
+                updateUI(container, { status: 'failed', message: '요청 중 오류가 발생했습니다.' });
             }
-        });
+        };
 
         btnGroup.appendChild(myBtn);
+    } else {
+        setTimeout(injectCloudButton, 1000);
     }
 }
+
+// Watch navigation
+let lastUrl = location.href;
+setInterval(() => {
+    if (location.href !== lastUrl) {
+        lastUrl = location.href;
+        injectCloudButton();
+    }
+}, 1000);
+
+// If YouTube replaces the button container without changing the URL, re-inject automatically.
+const bodyObserver = new MutationObserver(() => {
+    if (!document.getElementById('yt-mp3-cloud-saver-btn')) {
+        injectCloudButton();
+    }
+});
+bodyObserver.observe(document.body, { childList: true, subtree: true });
 
 injectCloudButton();
