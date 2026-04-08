@@ -1,0 +1,30 @@
+{
+    "manifest_version": 3,
+    "name": "YouTube to Cloud MP3",
+    "version": "1.0",
+    "description": "클릭 한 번으로 유튜브 영상을 클라우드에 MP3로 저장합니다.",
+    "permissions": [
+        "activeTab",
+        "scripting"
+    ],
+    "action": {
+        "default_popup": "popup.html",
+        "default_icon": "icon.png"
+    },
+    "content_scripts": [
+        {
+            "matches": [
+                "https://www.youtube.com/watch?v=*"
+            ],
+            "js": [
+                "content.js"
+            ],
+            "run_at": "document_idle"
+        }
+    ],
+    "icons": {
+        "16": "icon.png",
+        "48": "icon.png",
+        "128": "icon.png"
+    }
+}
