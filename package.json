@@ -1,0 +1,12 @@
+{
+  "name": "y2mp3-desktop",
+  "version": "1.0.0",
+  "description": "YouTube to MP3 desktop converter using Electron and Python yt-dlp.",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "electron": "^29.0.0"
+  }
+}
