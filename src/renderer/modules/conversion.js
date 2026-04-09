@@ -4,6 +4,21 @@ export function createConversionController({ dom, status }) {
     selectedOutputPath: '',
   };
 
+  function setControlsDisabled(disabled) {
+    try {
+      if (dom.videoUrlInput) dom.videoUrlInput.disabled = disabled;
+      if (dom.qualitySelect) dom.qualitySelect.disabled = disabled;
+      if (dom.convertButton) dom.convertButton.disabled = disabled;
+      if (dom.selectFolderButton) dom.selectFolderButton.disabled = disabled;
+      // Keep the open-folder button always enabled per UX request
+      if (dom.openFolderButton) dom.openFolderButton.disabled = false;
+      // output path input is readonly; disable for clarity during conversion
+      if (dom.outputPathInput) dom.outputPathInput.disabled = disabled;
+    } catch (e) {
+      console.warn('Failed to toggle controls', e);
+    }
+  }
+
   async function startConversion() {
     const url = dom.videoUrlInput.value.trim();
     if (!url) {
@@ -26,6 +41,8 @@ export function createConversionController({ dom, status }) {
       '대기/검증',
     );
 
+    // disable UI controls while conversion is running
+    setControlsDisabled(true);
     state.polling = true;
 
     try {
@@ -53,6 +70,8 @@ export function createConversionController({ dom, status }) {
       status.setStatus('오류 발생', '다운로드 처리 중 오류가 발생했습니다.', 0, '#f44336', '실패');
     } finally {
       state.polling = false;
+      // re-enable UI controls after conversion attempt finishes
+      setControlsDisabled(false);
     }
   }
 
@@ -74,20 +93,18 @@ export function createConversionController({ dom, status }) {
   async function openFolder() {
     const pathToOpen = state.selectedOutputPath || dom.outputPathInput.value;
     if (!pathToOpen) {
-      status.setStatus('오류', '먼저 저장 위치를 선택하세요.', 0, '#f44336');
+      // nothing to do if no path — silently return to avoid changing UI
+      console.warn('openFolder called but no path selected');
       return;
     }
 
     try {
-      const res = await window.electronAPI.openOutputFolder(pathToOpen);
-      if (res && res.success) {
-        status.setStatus('폴더 열기', '저장 위치를 탐색기에서 열었습니다.', 0, '#2196f3');
-      } else {
-        status.setStatus('오류', res && res.error ? res.error : '폴더를 열 수 없습니다.', 0, '#f44336');
-      }
+      // Open the folder using the main process. Do not update status UI here so
+      // progress indicators remain unaffected (per UX requirement).
+      await window.electronAPI.openOutputFolder(pathToOpen);
     } catch (e) {
       console.warn('openOutputFolder failed', e);
-      status.setStatus('오류', '폴더 열기 중 오류가 발생했습니다.', 0, '#f44336');
+      // keep UI unchanged on failures to avoid interfering with conversion progress
     }
   }
 
