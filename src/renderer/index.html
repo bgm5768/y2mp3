@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Y2MP3 Desktop</title>
+  <link rel="stylesheet" href="../assets/styles.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Y2MP3 Desktop</h1>
+      <span class="subtext">Convert YouTube videos to MP3 easily.</span>
+    </header>
+    <form id="convertForm">
+      <div class="row">
+        <input type="text" id="videoUrl" placeholder="https://www.youtube.com/watch?v=..." />
+        <select id="qualitySelect">
+          <option value="192k">192 kbps</option>
+          <option value="128k">128 kbps</option>
+          <option value="256k">256 kbps</option>
+        </select>
+        <button type="button" id="convertButton">MP3 변환</button>
+      </div>
+      <div class="row">
+        <input type="text" id="outputPath" readonly />
+        <button type="button" id="selectFolderButton">저장 위치 선택</button>
+        <button type="button" id="openFolderButton">저장 위치 열기</button>
+      </div>
+    </form>
+    <div class="status-area">
+      <div id="statusTitle">준비 완료</div>
+      <div id="statusText">진행 상태</div>
+      <div class="progress-row">
+        <span id="progressPercent">대기 중 0%</span>
+        <span id="stageMeta"></span>
+      </div>
+      <div id="progressFill"></div>
+      <div id="outputInfo">유튜브 URL을 입력하고 MP3 변환 버튼을 눌러주세요.</div>
+    </div>
+  </div>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

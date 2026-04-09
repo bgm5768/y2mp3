@@ -1,12 +1,44 @@
 {
-  "name": "y2mp3-desktop",
+  "name": "y2mp3",
   "version": "1.0.0",
   "description": "YouTube to MP3 desktop converter using Electron and Python yt-dlp.",
-  "main": "main.js",
+  "main": "src/main/main.js",
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder"
+  },
+  "dependencies": {
+    "electron": "^25.0.0"
   },
   "devDependencies": {
-    "electron": "^29.0.0"
+    "electron-builder": "^24.6.0"
+  },
+  "build": {
+    "appId": "com.example.y2mp3",
+    "productName": "Y2MP3",
+    "files": [
+      "**/*",
+      "!**/node_modules/*/{test,__tests__,tests}/**/*"
+    ],
+    "directories": {
+      "buildResources": "build"
+    },
+    "win": {
+      "target": ["nsis"],
+      "publisherName": "Y2MP3"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": true,
+      "allowToChangeInstallationDirectory": true
+    },
+    "mac": {
+      "target": ["dmg"]
+    },
+    "linux": {
+      "target": ["AppImage","deb"]
+    }
   }
 }

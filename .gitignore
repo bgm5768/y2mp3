@@ -3,3 +3,25 @@ downloads/
 __pycache__/
 *.pyc
 .DS_Store
+dist/
+# Local build artifacts
+*.exe
+*.msi
+*.deb
+*.AppImage
+
+# FFmpeg / binary artifacts
+ffmpeg*
+ffprobe*
+
+# Archives
+*.zip
+*.tar.gz
+*.tar.xz
+*.7z
+
+# Logs and temp
+*.log
+tmp/
+temp/
+.vscode/
